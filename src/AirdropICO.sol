@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -108,7 +108,7 @@ contract AirdropICO is Ownable {
      * @param _startTimestamp   ICO start time (unix seconds).
      * @param _endTimestamp     ICO end time (unix seconds). Must be > _startTimestamp.
      */
-    constructor(uint64 _startTimestamp, uint64 _endTimestamp) TokenRecover(msg.sender) {
+    constructor(uint64 _startTimestamp, uint64 _endTimestamp) Ownable(msg.sender) {
         if (_endTimestamp <= _startTimestamp) revert BadTimeWindow();
         startTime = _startTimestamp;
         _endTime = _endTimestamp;

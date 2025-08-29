@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.28;
 
 import {AirdropICO} from "../src/AirdropICO.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Test} from "forge-std/Test.sol";
 
 contract RevertingReceiver {
     // any ETH transfer to this contract reverts
