@@ -1,7 +1,6 @@
 import type { HardhatUserConfig } from "hardhat/config";
 
 const config: HardhatUserConfig = {
-  plugins: [],
   solidity: {
     profiles: {
       default: {
