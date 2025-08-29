@@ -63,7 +63,7 @@ contract Vault_Test is Test {
         Vault ico = _deploy(currentTimestamp + 100, currentTimestamp + 1000);
 
         vm.expectRevert(Vault.IcoNotStarted.selector);
-        (bool ok1, ) = address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        (bool ok1,) = address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
         assertTrue(ok1);
 
         vm.expectRevert(Vault.IcoNotStarted.selector);
