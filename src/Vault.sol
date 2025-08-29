@@ -2,9 +2,11 @@
 pragma solidity 0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /**
- * @title AirdropICO
+ * @title Vault
  * @notice Minimal ETH ICO vault that:
  *         1) Receives ETH while active and emits a Contributed event per deposit
  *         2) Owner or timelock can explicitly close the ICO to stop further contributions
@@ -12,7 +14,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev    Designed to pair with an off-chain indexer that reads Contributed events
  *         and builds a Merkle tree for an airdrop token. Uses custom errors for gas.
  */
-contract AirdropICO is Ownable {
+contract Vault is Ownable {
     // =============================================== Errors =========================================================
 
     /// @dev Thrown when endTime <= startTime.
@@ -226,5 +228,34 @@ contract AirdropICO is Ownable {
      */
     function isActive() external view returns (bool) {
         return !closed && block.timestamp >= startTime && block.timestamp < _endTime;
+    }
+
+    // =============================================== Token Recovery ==========================================================
+
+    // https://github.com/vittominacori/eth-token-recover/blob/master/contracts/ERC20Recover.sol#L29
+    function recoverERC20(address tokenAddress, address tokenReceiver, uint256 tokenAmount) public virtual onlyOwner {
+        _recoverERC20(tokenAddress, tokenReceiver, tokenAmount);
+    }
+
+    // https://github.com/vittominacori/eth-token-recover/blob/master/contracts/ERC721Recover.sol#L30
+    function recoverERC721(address tokenAddress, address tokenReceiver, uint256 tokenId, bytes memory data)
+        public
+        virtual
+        onlyOwner
+    {
+        _recoverERC721(tokenAddress, tokenReceiver, tokenId, data);
+    }
+
+    // https://github.com/vittominacori/eth-token-recover/blob/master/contracts/recover/RecoverERC20.sol#L22
+    function _recoverERC20(address tokenAddress, address tokenReceiver, uint256 tokenAmount) internal virtual {
+        IERC20(tokenAddress).transfer(tokenReceiver, tokenAmount);
+    }
+
+    // https://github.com/vittominacori/eth-token-recover/blob/master/contracts/recover/RecoverERC20.sol#L22
+    function _recoverERC721(address tokenAddress, address tokenReceiver, uint256 tokenId, bytes memory data)
+        internal
+        virtual
+    {
+        IERC721(tokenAddress).safeTransferFrom(address(this), tokenReceiver, tokenId, data);
     }
 }

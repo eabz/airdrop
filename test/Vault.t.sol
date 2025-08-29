@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {AirdropICO} from "../src/AirdropICO.sol";
+import {Vault} from "../src/Vault.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -12,7 +12,7 @@ contract RevertingReceiver {
     }
 }
 
-contract AirdropICO_Test is Test {
+contract Vault_Test is Test {
     address owner;
     address contributor1;
     address contributor2;
@@ -34,9 +34,9 @@ contract AirdropICO_Test is Test {
 
     // --- utilities ---
 
-    function _deploy(uint64 start, uint64 end) internal returns (AirdropICO ico) {
+    function _deploy(uint64 start, uint64 end) internal returns (Vault ico) {
         vm.startPrank(owner);
-        ico = new AirdropICO(start, end);
+        ico = new Vault(start, end);
         vm.stopPrank();
     }
 
@@ -44,51 +44,54 @@ contract AirdropICO_Test is Test {
 
     function testConstructor() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 3600);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 3600);
         require(ico.startTime() == currentTimestamp, "start mismatch");
         require(ico.endTime() == currentTimestamp + 3600, "end mismatch");
     }
 
     function testConstructorRevertsBadTimeWindow() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        vm.expectRevert(AirdropICO.BadTimeWindow.selector);
+        vm.expectRevert(Vault.BadTimeWindow.selector);
 
-        new AirdropICO(currentTimestamp + 100, currentTimestamp + 50);
+        new Vault(currentTimestamp + 100, currentTimestamp + 50);
     }
 
     // --- contribute before/after, via function and receive() ---
 
     function testContributeBeforeStartReverts() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp + 100, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp + 100, currentTimestamp + 1000);
 
-        vm.expectRevert(AirdropICO.IcoNotStarted.selector);
-        address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        vm.expectRevert(Vault.IcoNotStarted.selector);
+        (bool ok1, ) = address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        assertTrue(ok1);
 
-        vm.expectRevert(AirdropICO.IcoNotStarted.selector);
-        address(ico).call{value: 1}("");
+        vm.expectRevert(Vault.IcoNotStarted.selector);
+        (bool ok2,) = address(ico).call{value: 1}("");
+        assertTrue(ok2);
     }
 
     function testContributeZeroReverts() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp + 100, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp + 100, currentTimestamp + 1000);
 
-        vm.expectRevert(AirdropICO.ZeroContribution.selector);
-        address(ico).call{value: 0}(abi.encodeWithSignature("contribute()"));
+        vm.expectRevert(Vault.ZeroContribution.selector);
+        (bool ok1,) = address(ico).call{value: 0}(abi.encodeWithSignature("contribute()"));
+        assertFalse(ok1);
     }
 
     function testContributeDuringWindowSuccessAndAccounting() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(contributor1);
         vm.expectEmit(true, true, false, false, address(ico));
-        emit AirdropICO.Contributed(contributor1, 1 ether);
+        emit Vault.Contributed(contributor1, 1 ether);
         (bool ok1,) = address(ico).call{value: 1 ether}(abi.encodeWithSignature("contribute()"));
         assertTrue(ok1);
 
         vm.expectEmit(true, true, false, false, address(ico));
-        emit AirdropICO.Contributed(contributor1, 123);
+        emit Vault.Contributed(contributor1, 123);
         (bool ok2,) = address(ico).call{value: 123}("");
         assertTrue(ok2);
 
@@ -98,20 +101,22 @@ contract AirdropICO_Test is Test {
 
     function testAfterEndReverts() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
-        vm.expectRevert(AirdropICO.IcoEnded.selector);
-        address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        vm.expectRevert(Vault.IcoEnded.selector);
+        (bool ok1,) = address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        assertFalse(ok1);
 
-        vm.expectRevert(AirdropICO.IcoEnded.selector);
-        address(ico).call{value: 1}("");
+        vm.expectRevert(Vault.IcoEnded.selector);
+        (bool ok2,) = address(ico).call{value: 1}("");
+        assertFalse(ok2);
     }
 
     // --- close (owner/timelock), and post-close behavior ---
 
     function testCloseByOwnerAndTimelock() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(random);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
@@ -119,96 +124,98 @@ contract AirdropICO_Test is Test {
 
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.TimelockSet(timelock1);
+        emit Vault.TimelockSet(timelock1);
         ico.setTimelock(timelock1);
 
         vm.startPrank(timelock1);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.Closed(0);
+        emit Vault.Closed(0);
         ico.closeIco();
         assertFalse(ico.isActive());
 
-        vm.expectRevert(AirdropICO.AlreadyClosed.selector);
+        vm.expectRevert(Vault.AlreadyClosed.selector);
         ico.closeIco();
     }
 
     function testContributeAfterCloseReverts() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.Closed(0);
+        emit Vault.Closed(0);
         ico.closeIco();
 
-        vm.expectRevert(AirdropICO.IcoClosed.selector);
-        address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        vm.expectRevert(Vault.IcoClosed.selector);
+        (bool ok1,) = address(ico).call{value: 1}(abi.encodeWithSignature("contribute()"));
+        assertFalse(ok1);
 
-        vm.expectRevert(AirdropICO.IcoClosed.selector);
-        address(ico).call{value: 1}("");
+        vm.expectRevert(Vault.IcoClosed.selector);
+        (bool ok2,) = address(ico).call{value: 1}("");
+        assertFalse(ok2);
     }
 
     // --- setTimelock (owner or current timelock), and extend (owner/timelock) ---
 
     function testSetTimelockOwnerAndTimelockPaths() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.TimelockSet(timelock1);
+        emit Vault.TimelockSet(timelock1);
         ico.setTimelock(timelock1);
         assertEq(ico.timelock(), timelock1);
 
         vm.startPrank(timelock1);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.TimelockSet(timelock2);
+        emit Vault.TimelockSet(timelock2);
         ico.setTimelock(timelock2);
         assertEq(ico.timelock(), timelock2);
 
         vm.startPrank(timelock2);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.TimelockSet(address(0));
+        emit Vault.TimelockSet(address(0));
         ico.setTimelock(address(0));
         assertEq(ico.timelock(), address(0));
     }
 
     function testExtendEndTimeOwnerAndTimelockPathsAndGuards() public {
         uint64 currentTimestamp = uint64(block.timestamp) + 10;
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         // owner extends
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.EndTimeExtended(currentTimestamp + 2000);
+        emit Vault.EndTimeExtended(currentTimestamp + 2000);
         ico.extendEndTime(currentTimestamp + 2000);
         assertEq(ico.endTime(), currentTimestamp + 2000);
 
         ico.setTimelock(timelock1);
         vm.startPrank(timelock1);
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.EndTimeExtended(currentTimestamp + 2500);
+        emit Vault.EndTimeExtended(currentTimestamp + 2500);
         ico.extendEndTime(currentTimestamp + 2500);
         assertEq(ico.endTime(), currentTimestamp + 2500);
 
         vm.startPrank(owner);
-        vm.expectRevert(AirdropICO.BadNewEndTime.selector);
+        vm.expectRevert(Vault.BadNewEndTime.selector);
         ico.extendEndTime(currentTimestamp + 2500);
 
-        vm.expectRevert(AirdropICO.BadNewEndTime.selector);
+        vm.expectRevert(Vault.BadNewEndTime.selector);
         ico.extendEndTime(currentTimestamp + 2400);
 
-        vm.expectRevert(AirdropICO.BadNewEndTime.selector);
+        vm.expectRevert(Vault.BadNewEndTime.selector);
         ico.extendEndTime(currentTimestamp - 10);
 
         ico.closeIco();
-        vm.expectRevert(AirdropICO.AlreadyClosed.selector);
+        vm.expectRevert(Vault.AlreadyClosed.selector);
         ico.extendEndTime(currentTimestamp + 3000);
     }
 
     function testWithdrawFromNotOwner() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(random);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
@@ -217,26 +224,28 @@ contract AirdropICO_Test is Test {
 
     function testWithdrawNoFundsReverts() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(owner);
-        vm.expectRevert(AirdropICO.NoFundsToWithdraw.selector);
+        vm.expectRevert(Vault.NoFundsToWithdraw.selector);
         ico.withdraw(payable(owner));
     }
 
     function testWithdrawTransfersBalanceAndEmits() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(contributor1);
-        address(ico).call{value: 1 ether}(abi.encodeWithSignature("contribute()"));
+        (bool ok1,) = address(ico).call{value: 1 ether}(abi.encodeWithSignature("contribute()"));
+        assertTrue(ok1);
 
         vm.startPrank(owner);
         uint256 beforeBalance = address(owner).balance;
 
         vm.expectEmit(true, false, false, false, address(ico));
-        emit AirdropICO.Withdraw(owner, 1 ether);
-        address(ico).call(abi.encodeWithSignature("withdraw(address)", address(owner)));
+        emit Vault.Withdraw(owner, 1 ether);
+        (bool ok2,) = address(ico).call(abi.encodeWithSignature("withdraw(address)", address(owner)));
+        assertTrue(ok2);
 
         uint256 afterBal = address(owner).balance;
         assertGe(afterBal, beforeBalance + 1 ether);
@@ -245,14 +254,16 @@ contract AirdropICO_Test is Test {
 
     function testWithdrawFailsWhenReceiverReverts() public {
         uint64 currentTimestamp = uint64(block.timestamp);
-        AirdropICO ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
 
         vm.startPrank(contributor1);
-        address(ico).call{value: 1 ether}(abi.encodeWithSignature("contribute()"));
+        (bool ok1,) = address(ico).call{value: 1 ether}(abi.encodeWithSignature("contribute()"));
+        assertTrue(ok1);
 
         RevertingReceiver bad = new RevertingReceiver();
-        vm.expectRevert(AirdropICO.WithdrawFailed.selector);
+        vm.expectRevert(Vault.WithdrawFailed.selector);
 
-        address(ico).call(abi.encodeWithSignature("withdraw(address)", address(bad)));
+        (bool ok2,) = address(ico).call(abi.encodeWithSignature("withdraw(address)", address(bad)));
+        assertFalse(ok2);
     }
 }
