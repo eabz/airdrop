@@ -1,0 +1,24 @@
+{
+  "name": "airdrop",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "compile": "bunx hardhat compile",
+    "format": "prettier --write '**/*.{sol,js,json,md}'"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-ignition": "3.0.1",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "3.0.0",
+    "@openzeppelin/contracts": "5.4.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21",
+    "@types/node": "24.3.0",
+    "ethers": "6.15.0",
+    "hardhat": "3.0.3",
+    "mocha": "11.7.1",
+    "prettier": "3.6.2",
+    "prettier-plugin-solidity": "2.1.0",
+    "typescript": "5.9.2"
+  }
+}
