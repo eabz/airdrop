@@ -44,6 +44,12 @@ contract Vault is Ownable {
     /// @dev Thrown when msg.value == 0 for a contribution.
     error ZeroContribution();
 
+    /// @dev Thrown when the address for the timelock is address(0).
+    error ZeroTimelockAddress();
+
+    /// @dev Thrown trying to renounce ownership of the contract without a timelock set.
+    error NoTimelockAddressSet();
+
     // ============================================== Events ==========================================================
 
     /// @notice Emitted for each successful contribution.
@@ -136,6 +142,14 @@ contract Vault is Ownable {
         _;
     }
 
+    /// @dev Reverts if the msg.sender is not owner or the timelock.
+    modifier onlyOwnerOrTimelock() {
+        if (msg.sender != owner() && msg.sender != timelock) {
+            revert Ownable.OwnableUnauthorizedAccount(msg.sender);
+        }
+        _;
+    }
+
     // =============================================== Receive / Contribute ==========================================
 
     /**
@@ -166,10 +180,8 @@ contract Vault is Ownable {
      * @notice Set or clear the timelock address that can also close/extend the ICO. Callable by owner or current timelock.
      * @param _timelock New timelock (address(0) to disable).
      */
-    function setTimelock(address _timelock) external {
-        if (msg.sender != owner() && msg.sender != timelock) {
-            revert Ownable.OwnableUnauthorizedAccount(msg.sender);
-        }
+    function setTimelock(address _timelock) external onlyOwnerOrTimelock {
+        if (_timelock == address(0)) revert ZeroTimelockAddress();
         timelock = _timelock;
         emit TimelockSet(_timelock);
     }
@@ -177,10 +189,7 @@ contract Vault is Ownable {
     /**
      * @notice Explicitly close the ICO to stop further contributions. Can be called once by the owner or timelock.
      */
-    function closeIco() external {
-        if (msg.sender != owner() && msg.sender != timelock) {
-            revert Ownable.OwnableUnauthorizedAccount(msg.sender);
-        }
+    function closeIco() external onlyOwnerOrTimelock {
         if (closed) revert AlreadyClosed();
         closed = true;
         emit Closed(totalRaised);
@@ -190,10 +199,7 @@ contract Vault is Ownable {
      * @notice One-time extension of the end time before closing. Callable by owner or timelock.
      * @param newEndTime New end time (must be > current end time and in the future).
      */
-    function extendEndTime(uint64 newEndTime) external {
-        if (msg.sender != owner() && msg.sender != timelock) {
-            revert Ownable.OwnableUnauthorizedAccount(msg.sender);
-        }
+    function extendEndTime(uint64 newEndTime) external onlyOwnerOrTimelock {
         if (closed) revert AlreadyClosed();
         if (newEndTime <= _endTime || newEndTime <= block.timestamp) {
             revert BadNewEndTime();
@@ -206,12 +212,21 @@ contract Vault is Ownable {
      * @notice Withdraw all ETH.
      * @param to Recipient address for the funds.
      */
-    function withdraw(address payable to) external onlyOwner {
+    function withdraw(address payable to) external onlyOwnerOrTimelock {
         uint256 balance = address(this).balance;
         if (balance == 0) revert NoFundsToWithdraw();
         (bool ok,) = to.call{value: balance}("");
         if (!ok) revert WithdrawFailed();
         emit Withdraw(to, balance);
+    }
+
+    /**
+     * @notice One-time execution to renounce ownership of the contract. Must make sure a timelock is added.
+     */
+    function renounceOwnership() public override onlyOwner {
+        if (timelock == address(0)) revert NoTimelockAddressSet();
+
+        super.renounceOwnership();
     }
 
     // =============================================== Views ==========================================================
@@ -233,7 +248,11 @@ contract Vault is Ownable {
     // =============================================== Token Recovery ==========================================================
 
     // https://github.com/vittominacori/eth-token-recover/blob/master/contracts/ERC20Recover.sol#L29
-    function recoverERC20(address tokenAddress, address tokenReceiver, uint256 tokenAmount) public virtual onlyOwner {
+    function recoverERC20(address tokenAddress, address tokenReceiver, uint256 tokenAmount)
+        public
+        virtual
+        onlyOwnerOrTimelock
+    {
         _recoverERC20(tokenAddress, tokenReceiver, tokenAmount);
     }
 
@@ -241,7 +260,7 @@ contract Vault is Ownable {
     function recoverERC721(address tokenAddress, address tokenReceiver, uint256 tokenId, bytes memory data)
         public
         virtual
-        onlyOwner
+        onlyOwnerOrTimelock
     {
         _recoverERC721(tokenAddress, tokenReceiver, tokenId, data);
     }

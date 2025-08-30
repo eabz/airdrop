@@ -4,6 +4,8 @@ pragma solidity 0.8.28;
 import {Vault} from "../src/Vault.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Test} from "forge-std/Test.sol";
+import {MockERC20} from "src/mocks/MockERC20.sol";
+import {MockERC721} from "src/mocks/MockERC721.sol";
 
 contract RevertingReceiver {
     // any ETH transfer to this contract reverts
@@ -174,10 +176,8 @@ contract Vault_Test is Test {
         assertEq(ico.timelock(), timelock2);
 
         vm.startPrank(timelock2);
-        vm.expectEmit(true, false, false, false, address(ico));
-        emit Vault.TimelockSet(address(0));
+        vm.expectRevert(Vault.ZeroTimelockAddress.selector);
         ico.setTimelock(address(0));
-        assertEq(ico.timelock(), address(0));
     }
 
     function testExtendEndTimeOwnerAndTimelockPathsAndGuards() public {
@@ -265,5 +265,76 @@ contract Vault_Test is Test {
 
         (bool ok2,) = address(ico).call(abi.encodeWithSignature("withdraw(address)", address(bad)));
         assertFalse(ok2);
+    }
+
+    // --- renounce (renounce is only available with a timelock set) ---
+
+    function testRenounceRevertsWithoutTimelock() public {
+        uint64 currentTimestamp = uint64(block.timestamp);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+
+        vm.startPrank(owner);
+        vm.expectRevert(Vault.NoTimelockAddressSet.selector);
+        ico.renounceOwnership();
+    }
+
+    function testRenounceSucceedsAfterSettingTimelock() public {
+        uint64 currentTimestamp = uint64(block.timestamp);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+
+        vm.startPrank(owner);
+
+        ico.setTimelock(timelock1);
+        assertEq(ico.timelock(), timelock1);
+
+        ico.renounceOwnership();
+        assertEq(ico.owner(), address(0));
+    }
+
+    // --- recovery (all sent erc20 and erc721 tokens can be recovered by the owner) ---
+
+    function testRecoverERC20ByOwner() public {
+        uint64 currentTimestamp = uint64(block.timestamp);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+
+        vm.startPrank(contributor1);
+        MockERC20 erc20 = new MockERC20("MockERC20", "MockERC20", 1_000_000 ether);
+
+        assertEq(erc20.balanceOf(address(contributor1)), 1_000_000 ether);
+
+        uint256 amount = 100_000 ether;
+
+        assertEq(erc20.balanceOf(address(ico)), 0);
+        erc20.transfer(address(ico), amount);
+
+        assertEq(erc20.balanceOf(address(ico)), amount);
+
+        vm.startPrank(owner);
+        ico.recoverERC20(address(erc20), contributor1, amount);
+
+        assertEq(erc20.balanceOf(address(ico)), 0);
+        assertEq(erc20.balanceOf(contributor1), 1_000_000 ether);
+    }
+
+    function testRecoverERC721ByOwner() public {
+        uint64 currentTimestamp = uint64(block.timestamp);
+        Vault ico = _deploy(currentTimestamp, currentTimestamp + 1000);
+
+        vm.startPrank(contributor1);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+
+        MockERC721 erc721 = new MockERC721("MockERC721", "MockERC721", tokenIds);
+
+        assertEq(erc721.ownerOf(1), address(contributor1));
+
+        erc721.transferFrom(address(contributor1), address(ico), 1);
+        assertEq(erc721.ownerOf(1), address(ico));
+
+        vm.startPrank(owner);
+        ico.recoverERC721(address(erc721), contributor1, 1, "");
+
+        assertEq(erc721.ownerOf(1), address(contributor1));
     }
 }
