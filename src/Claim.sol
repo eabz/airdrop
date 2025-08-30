@@ -12,7 +12,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  * @notice ERC20 token with Merkle-claim airdrop.
  *         1. Owner or timelock sets a Merkle root of (index, account, amount).
  *         2. Users claim once with a Merkle proof; token is minted on claim.
- *         3. Double-claims prevented via a packed bitmap.
+ *         3. Double-claims prevented via a boolean map.
  * @dev    Pair this with your off-chain indexer that reads Vault.Contributed events,
  *         sums by address, builds the Merkle tree, and sets the root here.
  */
@@ -47,8 +47,8 @@ contract Claim is ERC20, Ownable {
     /// @notice Merkle root for allocations keccak256(abi.encode(index, account, amount)).
     bytes32 public merkleRoot;
 
-    /// @notice Per-256 bitmap of claimed indices.
-    mapping(uint256 => uint256) private _claimedBitMap;
+    /// @notice Simple map to check for claimed indexes.
+    mapping(uint256 => bool) private _claimed;
 
     /// @notice Optional address allowed to manage airdrop root alongside the owner.
     address public timelock;
@@ -58,9 +58,8 @@ contract Claim is ERC20, Ownable {
     /**
      * @param name_   ERC20 name
      * @param symbol_ ERC20 symbol
-     * @param owner_  Initial owner
      */
-    constructor(string memory name_, string memory symbol_, address owner_) ERC20(name_, symbol_) Ownable(owner_) {}
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) Ownable(msg.sender) {}
 
     // ============================ Admin ===============================
 
@@ -91,11 +90,7 @@ contract Claim is ERC20, Ownable {
      * @notice Returns true if `index` has already been claimed.
      */
     function isClaimed(uint256 index) public view returns (bool) {
-        uint256 wordIndex = index >> 8; // / 256
-        uint256 bitIndex = index & 255; // % 256
-        uint256 word = _claimedBitMap[wordIndex];
-        uint256 mask = 1 << bitIndex;
-        return (word & mask) == mask;
+        return _claimed[index];
     }
 
     /**
@@ -108,21 +103,13 @@ contract Claim is ERC20, Ownable {
     function claim(uint256 index, address account, uint256 amount, bytes32[] calldata proof) external {
         if (isClaimed(index)) revert AlreadyClaimed();
 
-        // Verify leaf
         bytes32 leaf = keccak256(abi.encode(index, account, amount));
         if (!MerkleProof.verify(proof, merkleRoot, leaf)) revert InvalidProof();
 
-        // Mark claimed and mint
-        _setClaimed(index);
+        _claimed[index] = true;
         _mint(account, amount);
 
         emit Claimed(index, account, amount);
-    }
-
-    function _setClaimed(uint256 index) private {
-        uint256 wordIndex = index >> 8;
-        uint256 bitIndex = index & 255;
-        _claimedBitMap[wordIndex] |= (1 << bitIndex);
     }
 
     // =============================================== Token Recovery ==========================================================

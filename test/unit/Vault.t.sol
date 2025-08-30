@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Vault} from "../src/Vault.sol";
+import {Vault} from "src/Vault.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Test} from "forge-std/Test.sol";
 import {MockERC20} from "src/mocks/MockERC20.sol";
