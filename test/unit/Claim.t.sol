@@ -30,4 +30,51 @@ contract Claim_Test is Test {
         claim = new Claim("TEST", "TEST");
         vm.stopPrank();
     }
+
+     // --- recovery (all sent erc20 and erc721 tokens can be recovered by the owner) ---
+
+    function testRecoverERC20ByOwner() public {
+        uint64 currentTimestamp = uint64(block.timestamp);
+        Claim claim = _deploy();
+
+        vm.startPrank(claimer1);
+        MockERC20 erc20 = new MockERC20("MockERC20", "MockERC20", 1_000_000 ether);
+
+        assertEq(erc20.balanceOf(address(claimer1)), 1_000_000 ether);
+
+        uint256 amount = 100_000 ether;
+
+        assertEq(erc20.balanceOf(address(claim)), 0);
+        erc20.transfer(address(claim), amount);
+
+        assertEq(erc20.balanceOf(address(claim)), amount);
+
+        vm.startPrank(owner);
+        claim.recoverERC20(address(erc20), claimer1, amount);
+
+        assertEq(erc20.balanceOf(address(claim)), 0);
+        assertEq(erc20.balanceOf(claimer1), 1_000_000 ether);
+    }
+
+    function testRecoverERC721ByOwner() public {
+        uint64 currentTimestamp = uint64(block.timestamp);
+        Claim claim = _deploy();
+
+        vm.startPrank(claimer1);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+
+        MockERC721 erc721 = new MockERC721("MockERC721", "MockERC721", tokenIds);
+
+        assertEq(erc721.ownerOf(1), address(claimer1));
+
+        erc721.transferFrom(address(claimer1), address(claim), 1);
+        assertEq(erc721.ownerOf(1), address(claim));
+
+        vm.startPrank(owner);
+        claim.recoverERC721(address(erc721), claimer1, 1, "");
+
+        assertEq(erc721.ownerOf(1), address(claimer1));
+    }
 }
