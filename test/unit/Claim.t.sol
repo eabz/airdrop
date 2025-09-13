@@ -31,7 +31,7 @@ contract Claim_Test is Test {
         vm.stopPrank();
     }
 
-     // --- recovery (all sent erc20 and erc721 tokens can be recovered by the owner) ---
+    // --- recovery (all sent erc20 and erc721 tokens can be recovered by the owner) ---
 
     function testRecoverERC20ByOwner() public {
         uint64 currentTimestamp = uint64(block.timestamp);
