@@ -31,3 +31,6 @@ jobs:
 
       - name: Forge Unit Test
         run: forge test -vvv
+
+      - name: Integration test
+        run: bun integration
