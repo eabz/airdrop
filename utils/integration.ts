@@ -1,5 +1,4 @@
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
-import { $ } from "bun";
 import {
 	type ContractTransactionReceipt,
 	type ContractTransactionResponse,
@@ -56,8 +55,6 @@ function deriveWallets(n: number, provider: JsonRpcProvider): HDNodeWallet[] {
 
 async function main() {
 	console.log("==> Starting integration test");
-	console.log("==> Building contracts and types with forge and typechain");
-	await $`bun run build`;
 
 	console.log("==> Starting anvil local node");
 	const anvil = Bun.spawn(
@@ -120,7 +117,7 @@ async function main() {
 	await vault.waitForDeployment();
 
 	const vaultAddr = await vault.getAddress();
-	console.log("Vault deployed at:", vaultAddr);
+	console.log("==> Vault deployed at:", vaultAddr);
 
 	console.log("==> Start event listener for contributions");
 
@@ -174,7 +171,58 @@ async function main() {
 	await claim.waitForDeployment();
 
 	const claimAddr = await claim.getAddress();
-	console.log("Claim deployed at:", claimAddr);
+	console.log("==> Claim deployed at:", claimAddr);
+
+	console.log("==> Setting claim root");
+
+	const nonce = await deployer?.getNonce();
+	const setMerkleRootTx = await claim.setClaimMerkle(tree.root, { nonce });
+	await setMerkleRootTx.wait();
+
+	console.log("==> Claiming tokens for all accounts");
+
+	const claimTxs = [];
+	for (let i = 0; i < contributions.length; i++) {
+		const contributor = contributions[i];
+		if (contributor) {
+			const contributorData: [string, bigint] = [
+				contributor[0],
+				contributor[1],
+			];
+
+			const proof = tree.getProof(contributorData);
+
+			const signerWallet = contributorWallets[i];
+
+			const claimAsUser = claim.connect(signerWallet);
+
+			claimTxs.push(claimAsUser.claim(contributor[0], contributor[1], proof));
+		}
+	}
+
+	await Promise.all(
+		claimTxs.map((p: Promise<ContractTransactionResponse>) =>
+			p.then(
+				(tx: ContractTransactionResponse) =>
+					tx.wait() as Promise<ContractTransactionReceipt>,
+			),
+		),
+	);
+
+	console.log("==> Check balances");
+	for (let i = 0; i < contributorWallets.length; i++) {
+		const contributor = contributorWallets[i];
+		if (contributor) {
+			const balance = await claim.balanceOf(contributor);
+			if (balance !== parseEther("5")) {
+				process.exit("invalid balance");
+			}
+		}
+	}
+
+	console.log("==> Integration flow completed, finishing gracefully");
+
+	process.exit(0);
 }
 
 main();
