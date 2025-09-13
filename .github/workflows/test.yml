@@ -32,6 +32,9 @@ jobs:
       - name: Forge Unit Test
         run: forge test -vvv
 
+      - name: Install bun dependencies
+        run: bun install
+
       - name: Create types
         run: bun run build
 
