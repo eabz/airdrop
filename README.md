@@ -49,18 +49,18 @@ forge coverage
 ## Integration testing
 Integration tests require Bun dependencies and generated TypeChain types.
 
-1.	Install dependencies:
+1. Install dependencies:
 ```bash
 bun install
 ```
 
-2.	Build contracts and generate types:
+2. Build contracts and generate types:
 
 ```bash
 bun run build
 ```
 
-3.	Run the integration test:
+3. Run the integration test:
 
 ```bash
 bun integration
