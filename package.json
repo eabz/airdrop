@@ -1,0 +1,17 @@
+{
+  "name": "airdrop",
+  "type": "module",
+  "private": false,
+  "scripts": {
+    "build:tree": "bun utils/merkle.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "1.0.8"
+  }
+}

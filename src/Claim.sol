@@ -28,8 +28,11 @@ contract Claim is ERC20, Ownable {
     /// @dev Merkle proof fails verification.
     error InvalidProof();
 
-    /// @dev Unauthorized caller (mirrors Ownable's pattern for non-owner/non-timelock).
-    error Unauthorized(address caller);
+    /// @dev Thrown when the address for the timelock is address(0).
+    error ZeroTimelockAddress();
+
+    /// @dev Thrown when the merkle root added is byte32(0).
+    error ZeroMerkleRoot();
 
     // ============================= Events =============================
 
@@ -37,7 +40,7 @@ contract Claim is ERC20, Ownable {
     event ClaimSet(bytes32 indexed merkleRoot);
 
     /// @notice Emitted when a claim is executed.
-    event Claimed(uint256 indexed index, address indexed account, uint256 amount);
+    event Claimed(address indexed account, uint256 amount);
 
     /// @notice Emitted when timelock is updated.
     event TimelockSet(address timelock);
@@ -48,7 +51,7 @@ contract Claim is ERC20, Ownable {
     bytes32 public merkleRoot;
 
     /// @notice Simple map to check for claimed indexes.
-    mapping(uint256 => bool) private _claimed;
+    mapping(address => bool) private _claimed;
 
     /// @notice Optional address allowed to manage airdrop root alongside the owner.
     address public timelock;
@@ -61,14 +64,24 @@ contract Claim is ERC20, Ownable {
      */
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) Ownable(msg.sender) {}
 
+    // ============================ Modifiers =========================
+
+    /// @dev Reverts if the msg.sender is not owner or the timelock.
+    modifier onlyOwnerOrTimelock() {
+        if (msg.sender != owner() && msg.sender != timelock) {
+            revert Ownable.OwnableUnauthorizedAccount(msg.sender);
+        }
+        _;
+    }
+
     // ============================ Admin ===============================
 
     /**
      * @notice Set the Merkle airdrop root. Callable once by owner or timelock.
-     * @param root The Merkle root of (index, account, amount) leaves.
+     * @param root The Merkle root of (account, amount) leaves.
      */
-    function setClaimMerkle(bytes32 root) external {
-        if (msg.sender != owner() && msg.sender != timelock) revert Unauthorized(msg.sender);
+    function setClaimMerkle(bytes32 root) external onlyOwnerOrTimelock {
+        if (root == bytes32(0)) revert ZeroMerkleRoot();
         if (merkleRoot != bytes32(0)) revert ClaimRootAlreadySet();
         merkleRoot = root;
         emit ClaimSet(root);
@@ -78,8 +91,8 @@ contract Claim is ERC20, Ownable {
      * @notice Set or clear the timelock address (owner or current timelock).
      * @param _timelock New timelock address (0 to disable).
      */
-    function setTimelock(address _timelock) external {
-        if (msg.sender != owner() && msg.sender != timelock) revert Unauthorized(msg.sender);
+    function setTimelock(address _timelock) external onlyOwnerOrTimelock {
+        if (_timelock == address(0)) revert ZeroTimelockAddress();
         timelock = _timelock;
         emit TimelockSet(_timelock);
     }
@@ -87,29 +100,28 @@ contract Claim is ERC20, Ownable {
     // ============================ Claim ===============================
 
     /**
-     * @notice Returns true if `index` has already been claimed.
+     * @notice Returns true if `account` has already been claimed.
      */
-    function isClaimed(uint256 index) public view returns (bool) {
-        return _claimed[index];
+    function isClaimed(address account) public view returns (bool) {
+        return _claimed[account];
     }
 
     /**
      * @notice Claim tokens with a Merkle proof and mint to `account`.
-     * @param index  Index in the Merkle tree (unique per leaf).
      * @param account Claimer address contained in the leaf.
      * @param amount  Token amount contained in the leaf (wei-scale if 1:1 with ETH wei).
-     * @param proof   Merkle proof for keccak256(abi.encode(index, account, amount)).
+     * @param proof   Merkle proof for keccak256(bytes.concat(keccak256(abi.encode(account, amount)))).
      */
-    function claim(uint256 index, address account, uint256 amount, bytes32[] calldata proof) external {
-        if (isClaimed(index)) revert AlreadyClaimed();
+    function claim(address account, uint256 amount, bytes32[] calldata proof) external {
+        if (isClaimed(account)) revert AlreadyClaimed();
 
-        bytes32 leaf = keccak256(abi.encode(index, account, amount));
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(account, amount))));
         if (!MerkleProof.verify(proof, merkleRoot, leaf)) revert InvalidProof();
 
-        _claimed[index] = true;
+        _claimed[account] = true;
         _mint(account, amount);
 
-        emit Claimed(index, account, amount);
+        emit Claimed(account, amount);
     }
 
     // =============================================== Token Recovery ==========================================================
