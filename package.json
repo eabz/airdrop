@@ -1,17 +1,26 @@
 {
-  "name": "airdrop",
-  "type": "module",
-  "private": false,
-  "scripts": {
-    "build:tree": "bun utils/merkle.ts"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "@openzeppelin/merkle-tree": "1.0.8"
-  }
+	"name": "airdrop",
+	"type": "module",
+	"private": false,
+	"scripts": {
+		"build": "forge build && bun types",
+		"build:tree": "bun utils/merkle.ts",
+		"format": "biome format --write ./utils/*",
+		"integration": "bun utils/integration.ts",
+		"lint": "biome lint --write ./utils/*",
+		"types": "typechain --target ethers-v6 --out-dir types 'out/**.sol/*.json'"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.2.4",
+		"@typechain/ethers-v6": "^0.5.1",
+		"@types/bun": "latest",
+		"typechain": "8.3.2"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@openzeppelin/merkle-tree": "1.0.8",
+		"ethers": "6.15.0"
+	}
 }
