@@ -1,5 +1,7 @@
 # Airdrop Boilerplate
 
+![Unit and Integration Tests](https://github.com/eabz/airdrop/actions/workflows/test.yml/badge.svg)
+
 Airdrop Boilerplate provides a minimal set of smart contracts to run a simple ICO flow:
 participants deposit ETH into a vault, and later claim their allocated ERC20 tokens through a Merkle tree–based distribution.
 
@@ -14,13 +16,12 @@ It includes:
 
 ## Install dependencies
 
-To install all the forge dependencies run:
-
+To install Foundry dependencies:
 ```bash
 forge install
 ```
 
-Make sure also install dependencies for testing and utilities:
+To install JavaScript/TypeScript dependencies for testing and utilities:
 
 ```bash
 bun install
@@ -28,18 +29,39 @@ bun install
 
 ## Build
 
-To compile the contracts, simply run:
+Compile the contracts with:
 ```bash
 forge build
 ```
 
 ## Unit testing
-To run the unit testing framework run:
+Run the unit tests:
+
 ```bash
 forge test
 ```
 
-If you want to check the code coverage you can optionally use:
+To check code coverage:
 ```bash
 forge coverage
+```
+
+## Integration testing
+Integration tests require Bun dependencies and generated TypeChain types.
+
+1.	Install dependencies:
+```bash
+bun install
+```
+
+2.	Build contracts and generate types:
+
+```bash
+bun run build
+```
+
+3.	Run the integration test:
+
+```bash
+bun integration
 ```
